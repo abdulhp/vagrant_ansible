@@ -35,7 +35,7 @@
             frontend mariadb-frontend
               bind *:3306
               mode tcp
-              default-backend mariadb-backend
+              default_backend mariadb-backend
             
             backend mariadb-backend
               mode tcp
