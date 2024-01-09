@@ -1,0 +1,77 @@
+---
+- name: MariaDB Provision
+  hosts: all
+  become: true
+  vars:
+    - node_index: 0
+    - ip: ''
+    - vm_hostname: ''
+    - gcomm_addresses: ''
+    - mariadb_command: ''
+
+  tasks:
+  - name: package update
+    ansible.builtin.apt:
+      pkg:
+        - apt-utils
+        - make
+        - autoconf
+      update_cache: yes
+
+  - name: add mariadb repo
+    block:
+      - name: get maridb signing key
+        ansible.builtin.get_url:
+          url: https://mariadb.org/mariadb_release_signing_key.asc
+          dest: /tmp/mariadb_release_signing_key.asc
+
+      - name: add mariadb repo
+        ansible.builtin.apt_repository:
+          repo: "deb [arch=amd64,arm64,ppc64el signed-by=/tmp/mariadb_release_signing_key.asc] https://download.nus.edu.sg/mirror/mariadb/repo/10.4/ubuntu/ focal main"
+          state: present
+          update-cache: yes
+
+  - name: install mariadb
+    block:
+      - name: install packages
+        ansible.builtin.apt:
+          pkg:
+            - mariadb-server
+            - nginx
+      
+      - name: turn off mariadb for config
+        ansible.builtin.systemd_service:
+          name: mariadb
+          state: stopped
+
+  - name: allow galera port
+    block: 
+      - name: allow tcp port
+        community.general.ufw:
+          port: 3306,4567,4568,4444
+          proto: tcp
+          rule: allow
+  
+      - name: allow udp port
+        community.general.ufw:
+          port: 4567
+          proto: udp
+          rule: allow
+  
+  - name: config and galera on mariadb
+    block:
+      - name: copy galera config file
+        shell: cp /vagrant/galera.cnf /etc/mysql/conf.d/galera.cnf
+
+      - name: replace hostname
+        shell: sed -i 's/THIS_HOSTNAME/{{vm_hostname}}/' /etc/mysql/conf.d/galera.cnf
+
+      - name: replace gcomm addresses
+        shell: sed -i 's/ALL_IPS/{{gcomm_addresses}}/' /etc/mysql/conf.d/galera.cnf
+
+      - name: replace current ip
+        shell: sed -i 's/THIS_IP/{{ip}}/' /etc/mysql/conf.d/galera.cnf
+
+      - name: start galera or mariadb
+        shell: '{{mariadb_command}}'
+...

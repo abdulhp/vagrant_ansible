@@ -1,0 +1,56 @@
+---
+- name: HAProxy Provision
+  hosts: all
+  become: true
+
+  tasks:
+  - name: package update
+    ansible.builtin.apt:
+      pkg:
+        - software-properties-common
+      update_cache: yes
+
+  - name: add haproxy repo
+    ansible.builtin.apt_repository:
+      repo: ppa:vbernat/haproxy-2.6
+      update-cache: true
+
+  - name: install haproxy
+    ansible.builtin.apt:
+      name: haproxy
+      state: present
+
+  - name: turn off haproxy
+    ansible.builtin.systemd_service:
+      name: haproxy
+      state: stopped
+
+  - name: configure haproxy
+    block:
+      - name: add backend route
+        ansible.builtin.lineinfile:
+          path: /etc/haproxy/haproxy.cfg
+          line: |
+
+            frontend mariadb-frontend
+              bind *:3306
+              mode tcp
+              default-backend mariadb-backend
+            
+            backend mariadb-backend
+              mode tcp
+              balance roundrobin
+              server db-0 192.168.56.21:3306 check
+              server db-1 192.168.56.22:3306 check
+              server db-2 192.168.56.23:3306 check
+
+            listen stats
+              bind *:8404
+              stats enable
+              stats uri /monitor
+              
+      - name: start haproxy
+        ansible.builtin.systemd_service:
+          name: haproxy
+          state: started      
+...
